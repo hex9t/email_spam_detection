@@ -1,7 +1,7 @@
 import streamlit as st
 from PIL import Image
 import pytesseract
-from spam_detection import spam_detection
+import numpy as np
 from email_system import get_text_plain_part
 from email_system import format_email_headers
 from email_system import read_email_content_by_uid
@@ -9,6 +9,26 @@ from email_system import get_last_email_uid
 from email_system import delete_email_by_uid
 import re
 import time
+import joblib
+from sklearn.feature_extraction.text import CountVectorizer
+import json
+import requests
+from streamlit_lottie import st_lottie
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+
+def spam_detection(text):
+    model = joblib.load('spam_detection.joblib')
+    cv = joblib.load('vectorizer.joblib')
+    text_vector = cv.transform([text])
+    prediction = model.predict(text_vector)
+    return prediction[0]
+
+
+
+
 
 def read_variables_from_file(file_path):
     with open(file_path, 'r') as file:
@@ -28,15 +48,6 @@ def write_variables_to_file(file_path, variable_dict):
     with open(file_path, 'w') as file:
         for name, value in variable_dict.items():
             file.write(f"{name} = {value}\n")
-
-def init_session_state():
-    if 'number_of_users' not in st.session_state:
-        st.session_state.number_of_users = 0
-
-# Function to increment number_of_users by 1 when the 'OK' button is clicked
-def increment_users():
-    st.session_state.number_of_users += 1
-
 
 
 def extract_money_sentences(text):
@@ -61,12 +72,7 @@ def find_words_in_string(input_string):
 
     return found_words
 
-# Example usage:
-input_string = "My mother is a doctor, and my father works in the city. I have a younger brother."
-result = find_words_in_string(input_string)
-
-print("Found words:", result)
-
+#
 
 def extract_links(text):
     # Define the regex pattern to match URLs
@@ -94,6 +100,7 @@ def get_color(score):
         color_hex = "#008000"
 
     return color_hex
+#calculer un score de risk
 def risk(text):
     counter = [0,0] 
     text_v=text.split()
@@ -118,7 +125,7 @@ def highlight_spam_words(text):
 
     return highlighted_text.strip()
 
-
+# c'est un scan avancé des motes de l'email
 def advanced(text):
     score = risk(text)
                   
@@ -145,99 +152,35 @@ def advanced(text):
         st.write("this is a bit suspicious so be aware !")
     elif score < 3 :
         st.write("it looks like this email is safe")                  
+    highlighted_text = highlight_spam_words(text)
+    st.write("words we find suspicious in your email such dates, threatening messages...etc will be highlited in red:")
 
-
+    st.markdown(highlighted_text, unsafe_allow_html=True)
     
     
+    
 
 
 
 
 
-
+# design du homepage
 def design():
-    # Custom CSS styling
-    st.markdown(
-        """
-        <style>
-            body {
-                background-color: #1F1F1F;
-                color: #FFFFFF;
-                font-family: 'Helvetica', Arial, sans-serif;
-            }
-            .main {
-                background-color: #2A2A2A;
-                padding: 30px;
-                border-radius: 10px;
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Add a subtle box-shadow effect */
-                max-width: 800px;
-                margin: 0 auto; /* Center the container horizontally */
-                margin-top: 100px; /* Add some top margin for spacing */
-            }
-            .title {
-                font-size: 48px;
-                font-weight: bold;
-                margin-bottom: 20px;
-                color: #FF5722; /* Use a vibrant color for the title */
-            }
-            .subtitle {
-                font-size: 24px;
-                margin-bottom: 30px;
-                color: #FF7043; /* Use a different color for the subtitle */
-            }
-            .feature {
-                font-size: 18px;
-                margin-bottom: 15px;
-            }
-            .action-button {
-                background-color: #FF5722;
-                color: #FFFFFF;
-                padding: 12px 24px;
-                border: none;
-                border-radius: 5px;
-                font-size: 20px;
-                cursor: pointer;
-            }
-            .action-button:hover {
-                background-color: #FF7043;
-            }
-            .image-container {
-                text-align: center; /* Center the image */
-                margin-bottom: 20px;
-            }
-            .image-caption {
-                font-size: 14px;
-                color: #A0A0A0; /* Use a lighter color for the caption */
-            }
-            /* Add shine effect to the edges */
-            .main::before {
-                content: "";
-                position: absolute;
-                top: -5px;
-                right: -5px;
-                bottom: -5px;
-                left: -5px;
-                z-index: -1;
-                background: linear-gradient(
-                    to right bottom,
-                    rgba(255, 255, 255, 0.1),
-                    rgba(255, 255, 255, 0.05)
-                );
-                border-radius: 15px;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    
+    st.markdown('<h1 style="color: #FF8080;">HOMEPAGE:</h1>',unsafe_allow_html=True)
+    url = requests.get(
+	"https://lottie.host/58697c6d-48a2-4346-930a-2528f270fd8d/wpmTZTzRf7.json")
 
+    url_json = url.json()    
 
-    # Add an image
-    st.image("https://www.k12prospects.com/wp-content/uploads/2018/11/top-image-without-frame-Avoiding-Email-Spam-Filters.jpg", use_column_width=True)
+    st_lottie(url_json,width=1000, height=600)
+
+   
 
     st.markdown("<div class='title'>Welcome to The HOMEPAGE</div>", unsafe_allow_html=True)
     st.markdown("<div class='subtitle'>use my app but with care please :)</div>", unsafe_allow_html=True)
 
-    # Cool features section
+    
     st.markdown("<div class='feature'>", unsafe_allow_html=True)
     st.markdown("## spam detection ")
     file_path = 'number_of_users.txt'
@@ -250,26 +193,34 @@ def design():
         st.metric(label="Spam Detections", value=dict['detection_times'], delta="New Detections")
     with col3:
         st.metric(label="Safe Emails", value=dict['safe_emails'], delta="New Safe Emails")
+    data = dict    
+
+    detection_times_percentage = (data['detection_times'] / data['number_of_uses']) * 100
+    safe_emails_percentage = (data['safe_emails'] / data['number_of_uses']) * 100
+    
+ 
+    fig, ax = plt.subplots(facecolor='0e1117')
+    ax.pie([detection_times_percentage, safe_emails_percentage], labels=["spam emails", "Safe Emails"], autopct='%1.1f%%', startangle=90)
+    ax.axis('off')  # Equal aspect ratio ensures the pie chart is circular.
+    st.write(fig)   
+
+
+
 
     
-
-   
-    
-    
-    
-    # Close the main content section
     st.markdown("</div>", unsafe_allow_html=True)
-# Set the Tesseract executable path
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    
+    
+
 
 def extract_text_from_image(image):
-    # Convert the image to grayscale
+ 
     image = image.convert("L")
 
-    # Use Tesseract to perform OCR and extract text
+    
     text = pytesseract.image_to_string(image)
 
-    # Return the extracted text
+   
     return text
 
 def main():
@@ -277,19 +228,17 @@ def main():
     variable_dict = read_variables_from_file(file_path)
     st.set_page_config(page_title="Image Text Extraction and Spam Detection", layout="wide")
 
-    # Set app title and header
     st.title("Image Text Extraction and Spam Detection")
     st.markdown("This is a project of mine to extract text from images and detect spam emails.")
 
-    # Create a sidebar
+ 
     st.sidebar.title("Navigation")
     app_mode = st.sidebar.radio(
         "Select an option:",
         ["💒:Home Page","📜:Text Input", "🖼️ :Image Upload", "📬:Gmail Spam Scan"]
     )
 
-    # Text Input mode
-
+   
 
 
     if app_mode == "📜:Text Input":
@@ -316,9 +265,7 @@ def main():
 
         
         
-           
 
-    # Gmail Spam Scan mode
     elif app_mode == "📬:Gmail Spam Scan":
         st.header("Gmail Spam Scan")
         st.subheader("Enter your Gmail credentials:")
@@ -329,7 +276,7 @@ def main():
 
         if st.button("Analyze Gmail Inbox"):
             
-            increment_users()
+
             last_email_uid = get_last_email_uid(imap_server, username, password)
             if last_email_uid:
                 st.write("Latest Email Content:")
@@ -346,6 +293,9 @@ def main():
                     advanced(input)
             else:
                 st.error("No emails found in the mailbox.")
+        st.header("you should know:")
+        st.write("in order for the gmail analyze to work you need to enable 'less secure apps' in your gmail!")
+        st.write("and use the password provided by google the 'app password'")        
         
 
 
@@ -360,7 +310,6 @@ def main():
              
              
 
-    # Image Upload mode
     elif app_mode == "🖼️ :Image Upload":
         st.header("Image Upload")
         st.subheader("Upload an image:")
@@ -383,24 +332,18 @@ def main():
             elif prediction == 0:
                 st.success("The extracted text is not classified as spam.")
                 with st.spinner("Running advanced scanning..."):
+                 
                  advanced(extracted_text)
-                 highlighted_text = highlight_spam_words(extracted_text)
-                 st.write("words we find suspicious in your email such dates, threatening messages...etc:")
-
-                 st.markdown(highlighted_text, unsafe_allow_html=True)
                  variable_dict["safe_emails"]+=1
-                 write_variables_to_file(file_path, variable_dict)
+                 write_variables_to_file(file_path, variable_dict)   
+
+
+                 
                  
                                 
 
    
          
-                
-
-
-    # Display the score with colored background
-
-                        
               
              
       
