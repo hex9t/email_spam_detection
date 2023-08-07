@@ -17,6 +17,7 @@ from streamlit_lottie import st_lottie
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 
 def spam_detection(text):
