@@ -178,7 +178,7 @@ def design():
    
 
     st.markdown("<div class='title'>Welcome to The HOMEPAGE</div>", unsafe_allow_html=True)
-    st.markdown("<div class='subtitle'>use my app but with care please :)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>use any option you want in the navigation bar</div>", unsafe_allow_html=True)
 
     
     st.markdown("<div class='feature'>", unsafe_allow_html=True)
@@ -201,7 +201,7 @@ def design():
  
     fig, ax = plt.subplots(facecolor='0e1117')
     ax.pie([detection_times_percentage, safe_emails_percentage], labels=["spam emails", "Safe Emails"], autopct='%1.1f%%', startangle=90)
-    ax.axis('off')  # Equal aspect ratio ensures the pie chart is circular.
+    ax.axis('off')  
     st.write(fig)   
 
 
