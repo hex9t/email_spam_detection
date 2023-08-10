@@ -1,3 +1,4 @@
+
 import streamlit as st
 from PIL import Image
 import pytesseract
@@ -16,9 +17,29 @@ import requests
 from streamlit_lottie import st_lottie
 import matplotlib.pyplot as plt
 import seaborn as sns
+import tensorflow as tf
+import pickle
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import plotly.express as px
 
+if "number_of_users" not in st.session_state:
+    st.session_state["number_of_users"] = 50
+if "number_of_safe_emails" not in st.session_state:
+    st.session_state["number_of_safe_emails"] = 30
+if "number_of_spam_emails" not in st.session_state:
+    st.session_state["number_of_spam_emails"] = 20       
 
+d_model = tf.keras.models.load_model('deep_learning_model.h5')
+with open('d_tokenizer.pickle', 'rb') as handle:
+    tokenizer = pickle.load(handle)
 
+def d_prediction(text):
+    test_tokens = tokenizer.texts_to_sequences([text])
+    test_paded =  pad_sequences(test_tokens, maxlen=20, padding="post", truncating="post")
+    if d_model.predict(test_paded) > 0.5:
+        return 1
+    else:
+        return 0    
 def spam_detection(text):
     model = joblib.load('spam_detection.joblib')
     cv = joblib.load('vectorizer.joblib')
@@ -110,24 +131,41 @@ def risk(text):
         elif spam_detection(word)==0 : 
             counter[1] = counter[1] + 1   
     medium = round(counter[0]/len(text_v) * 10,2 )
-    return medium   
+    return medium
+def d_risk(text):
+    counter = [0,0] 
+    text_v=text.split()
+    for word in text_v:
+        if d_prediction(word)==1:
+            counter[0] = counter[0] + 1 
+        elif d_prediction(word)==0 : 
+            counter[1] = counter[1] + 1   
+    medium = round(counter[0]/len(text_v) * 10,2 )
+    return medium    
         
-
+words_to_remove = ['for', 'as', 'to', 'with','is']
 def highlight_spam_words(text):
     words = text.split()
     highlighted_text = ""
 
     for word in words:
-        if spam_detection(word):
-            highlighted_text += f'<span style="color:red">{word}</span> '
-        else:
+        if word in words_to_remove:
             highlighted_text += f"{word} "
+        else:    
+
+            if spam_detection(word):
+                highlighted_text += f'<span style="color:red">{word}</span> '
+            else:
+                highlighted_text += f"{word} "
 
     return highlighted_text.strip()
 
 # c'est un scan avancé des motes de l'email
-def advanced(text):
-    score = risk(text)
+def advanced(text,id):
+    if id == 0:
+     score = risk(text)
+    else:
+        score = d_risk(text) 
                   
     if extract_links(text)==None:
         st.write("no links...")
@@ -166,51 +204,52 @@ def advanced(text):
 
 # design du homepage
 def design():
+    # Set page title and icon
     
-    st.markdown('<h1 style="color: #FF8080;">HOMEPAGE:</h1>',unsafe_allow_html=True)
-    url = requests.get(
-	"https://lottie.host/58697c6d-48a2-4346-930a-2528f270fd8d/wpmTZTzRf7.json")
-
+    # Header with Lottie animation
+    st.markdown('<h1 style="color: #FF8080;">HOMEPAGE:</h1>', unsafe_allow_html=True)
+    url = requests.get("https://lottie.host/c2534cf0-83c9-4822-b017-e5d637ec1dd2/RGqASbFpMF.json")
     url_json = url.json()    
+    st_lottie(url_json, width=800, height=600)
 
-    st_lottie(url_json,width=1000, height=600)
-
-   
-
+    # Title and subtitle
     st.markdown("<div class='title'>Welcome to The HOMEPAGE</div>", unsafe_allow_html=True)
-    st.markdown("<div class='subtitle'>use any option you want in the navigation bar</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>Use my app with care please :)</div>", unsafe_allow_html=True)
 
+    # Create a smaller box for the feature section
+    with st.markdown("<div class='feature' style='border: 2px solid #FF8080; padding: 20px;'>", unsafe_allow_html=True):
+        st.markdown("## Spam Detection")
+        
+        file_path = 'number_of_users.txt'
+        data = read_variables_from_file(file_path)
+        data = dict()
+        data["number_of_uses"] = st.session_state.number_of_users
+        data["detection_times"] = st.session_state.number_of_spam_emails
+        data["safe_emails"] = st.session_state.number_of_safe_emails
+        
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(label="Uses", value=data['number_of_uses'], delta="Total Uses")
+        with col2:
+            st.metric(label="Spam Detections", value=data['detection_times'], delta="New Detections")
+        with col3:
+            st.metric(label="Safe Emails", value=data['safe_emails'], delta="New Safe Emails")
     
-    st.markdown("<div class='feature'>", unsafe_allow_html=True)
-    st.markdown("## spam detection ")
-    file_path = 'number_of_users.txt'
-    dict=read_variables_from_file(file_path)
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric(label="Uses", value=dict['number_of_uses'], delta="Total Uses")
-    with col2:
-        st.metric(label="Spam Detections", value=dict['detection_times'], delta="New Detections")
-    with col3:
-        st.metric(label="Safe Emails", value=dict['safe_emails'], delta="New Safe Emails")
-    data = dict    
-
     detection_times_percentage = (data['detection_times'] / data['number_of_uses']) * 100
     safe_emails_percentage = (data['safe_emails'] / data['number_of_uses']) * 100
-    
- 
-    fig, ax = plt.subplots(facecolor='0e1117')
-    ax.pie([detection_times_percentage, safe_emails_percentage], labels=["spam emails", "Safe Emails"], autopct='%1.1f%%', startangle=90)
-    ax.axis('off')  
-    st.write(fig)   
 
-
-
-
+    # Create and display pie chart using Plotly
+    fig = px.pie(
+        values=[detection_times_percentage, safe_emails_percentage],
+        names=["Spam Emails", "Safe Emails"],
+        title="Spam Detection Percentage",
+    )
+    fig.update_traces(textinfo='percent+label')
     
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    
+    st.plotly_chart(fig, use_container_width=True)
+    st.write(st.session_state.number_of_users)
 
 
 def extract_text_from_image(image):
@@ -224,18 +263,18 @@ def extract_text_from_image(image):
     return text
 
 def main():
-    file_path = 'number_of_users.txt'
-    variable_dict = read_variables_from_file(file_path)
-    st.set_page_config(page_title="Image Text Extraction and Spam Detection", layout="wide")
+    
+    st.set_page_config(page_title="spam filter", page_icon=":gear:")
+  
 
-    st.title("Image Text Extraction and Spam Detection")
-    st.markdown("This is a project of mine to extract text from images and detect spam emails.")
+    st.title("spam detection using ai ")
+    st.markdown("This is a project of mine to filter spam emails using various methods.")
 
  
     st.sidebar.title("Navigation")
     app_mode = st.sidebar.radio(
         "Select an option:",
-        ["💒:Home Page","📜:Text Input", "🖼️ :Image Upload", "📬:Gmail Spam Scan"]
+        ["💒:Home Page","📜:Text Input", "🖼️ :Image Upload", "📬:Gmail Spam Scan", "🤷‍♀️ lost ❔"]
     )
 
    
@@ -247,15 +286,30 @@ def main():
 
         his_email = st.text_area("Enter your email:")
 
-        if st.button("Submit Your Email"):
+        if st.button("scan with the machine learning model 🤖"):
         
   
             prediction = spam_detection(his_email)
+            st.session_state.number_of_users +=1
             if prediction == 1:
                 st.warning("The text is classified as spam.")
+                st.session_state.number_of_spam_emails+=1
             elif prediction == 0:
                 st.success("The text is not classified as spam.")
-                advanced(his_email)
+                advanced(his_email,0)
+                st.session_state.number_of_safe_emails+=1
+        if st.button("scan with deep learning model 🛸"):
+            prediction = d_prediction(his_email)
+            st.session_state.number_of_users +=1
+            if prediction == 1:
+                st.warning("The text is classified as spam.")
+                st.session_state.number_of_spam_emails+=1
+            elif prediction == 0:
+                st.success("The text is not classified as spam.")
+                advanced(his_email,1)
+                st.session_state.number_of_safe_emails+=1
+
+            
 
 
     elif app_mode == "💒:Home Page":
@@ -275,6 +329,7 @@ def main():
         imap_server = 'imap.gmail.com'
 
         if st.button("Analyze Gmail Inbox"):
+            st.session_state.number_of_users +=1
             
 
             last_email_uid = get_last_email_uid(imap_server, username, password)
@@ -285,11 +340,13 @@ def main():
                 
                 prediction = spam_detection(input)
                 if prediction == 1:
+                    st.session_state.number_of_spam_emails+=1
                     st.error("The email is classified as spam.")
                     st.warning("The email has been deleted from your inbox.")
                     delete_email_by_uid(imap_server, username, password, last_email_uid)
                 else:
                     st.success("The email is not classified as spam.")
+                    st.session_state.number_of_safe_emails+=1
                     advanced(input)
             else:
                 st.error("No emails found in the mailbox.")
@@ -298,7 +355,36 @@ def main():
         st.write("and use the password provided by google the 'app password'")        
         
 
+    elif app_mode == "🤷‍♀️ lost ❔":
+        st.title("Simple Tutorial")
+        st.write("This tutorial guides you through options for spam detection using both deep learning and naive Bayes scans. If the AI predicts that your email is spam, it will perform an 'advanced scan' for further analysis.")
+        st.write("Results are categorized into levels of safety:")
 
+        # Safety Levels
+        st.success("0 - 3: Your email is totally safe.")
+        st.warning("3 - 6: Your email is suspicious.")
+        st.error("6 - 10: Your email is dangerous.")
+
+        # Text Input Section
+        st.header("Text Input:")
+        st.info("Simply write or paste your message into the text input box, and then scan to see the results!")
+
+        # Image Scan Section
+        st.header("Image Scan:")
+        st.info("For those who want to scan a screenshot of their email:")
+        st.header("gmail scan")
+        st.warning("you must enable 'less secure apps' in your google account first and log in with the password provided by google. it takes this form :'XXXX XXXX XXXX XXXX' ")
+        st.write("if you click 'analyse gmail inbox' the ai will read your last email and analyse it")
+        st.write("it will automatily deletet it if it was a spam")
+
+        
+
+        if st.button("understood"):
+            st.balloons()
+            
+
+       
+        
                 
             
 
@@ -315,9 +401,8 @@ def main():
         st.subheader("Upload an image:")
         uploaded_image = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"])
 
-        if st.button("Process Image") and uploaded_image is not None:
-            variable_dict["number_of_uses"] +=1
-            write_variables_to_file(file_path, variable_dict)
+        if st.button("Process Image with machine learning model 🤖") and uploaded_image is not None:
+            st.session_state.number_of_users +=1
             image = Image.open(uploaded_image)
             extracted_text = extract_text_from_image(image)
 
@@ -326,16 +411,37 @@ def main():
 
             if prediction == 1:
                 st.warning("The extracted text is classified as spam.")
-                variable_dict["detection_times"]+=1
-                write_variables_to_file(file_path, variable_dict)
+                st.session_state.number_of_spam_emails+=1
+                
                 
             elif prediction == 0:
                 st.success("The extracted text is not classified as spam.")
                 with st.spinner("Running advanced scanning..."):
                  
-                 advanced(extracted_text)
-                 variable_dict["safe_emails"]+=1
-                 write_variables_to_file(file_path, variable_dict)   
+                 advanced(extracted_text,0)
+                 st.session_state.number_of_safe_emails+=1
+        if st.button("process image with deep machine learning model 🛸"):
+            st.session_state.number_of_users +=1
+            image = Image.open(uploaded_image)
+            extracted_text = extract_text_from_image(image)
+
+            st.write("Checking for spam...")
+            prediction = d_prediction(extracted_text)
+
+            if prediction == 1:
+                st.warning("The extracted text is classified as spam.")
+                st.session_state.number_of_spam_emails+=1
+                
+                
+            elif prediction == 0:
+                st.success("The extracted text is not classified as spam.")
+                with st.spinner("Running advanced scanning..."):
+                 st.session_state.number_of_safe_emails+=1
+                 
+                 advanced(extracted_text,1)
+                  
+
+                    
 
 
                  
